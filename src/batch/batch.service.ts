@@ -9,7 +9,10 @@ import { BraveSearchService } from './brave-search.service';
 import { CrawlingService } from './crawling.service';
 import { createConceptPrompts } from './prompts/create-concept-prompts';
 import { createExamplePrompts } from './prompts/create-example-prompts';
+import { createExplorationPrompts } from './prompts/create-exploration-prompts';
+import { createImportancePrompts } from './prompts/create-importace-prompts';
 import { createQuizzesPrompts } from './prompts/create-quizzes-propmts';
+import { createRelatedWordsPrompts } from './prompts/create-related-words-prompts';
 import { createSummaryPrompts } from './prompts/create-summary-prompts';
 import { articleSchema, quizArraySchema } from './schemas/schemas';
 import { KeywordInfo } from './types/types';
@@ -106,6 +109,21 @@ export class BatchService {
         relatedData,
       ),
       createExamplePrompts(
+        keywordInfo.name,
+        keywordInfo.description,
+        relatedData,
+      ),
+      createRelatedWordsPrompts(
+        keywordInfo.name,
+        keywordInfo.description,
+        relatedData,
+      ),
+      createImportancePrompts(
+        keywordInfo.name,
+        keywordInfo.description,
+        relatedData,
+      ),
+      createExplorationPrompts(
         keywordInfo.name,
         keywordInfo.description,
         relatedData,
