@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Article } from 'generated/prisma/client';
 import { AiService } from 'src/ai/ai.service';
 import { BATCH_OPTIONS } from 'src/constants/batch-options';
 import { ERROR_MESSAGE } from 'src/constants/error-message';
@@ -15,6 +16,8 @@ import { KeywordInfo } from './types/types';
 
 @Injectable()
 export class BatchService {
+  private readonly logger = new Logger(BatchService.name);
+
   constructor(
     private readonly braveSearchService: BraveSearchService,
     private readonly crawlingService: CrawlingService,
@@ -22,34 +25,47 @@ export class BatchService {
     private readonly aiService: AiService,
   ) {}
 
-  async generateContents(keywordId: bigint) {
+  async generateContents(keywordId: bigint): Promise<void> {
+    this.logger.log(`Starting content generation for keyword ID: ${keywordId}`);
+
     const keywordInfo = await this.findKeyword(keywordId);
 
-    const prompts = await this.createPrompts(keywordInfo);
+    if (await this.isArticleExists(keywordId)) {
+      if (await this.isQuizExists(keywordId)) {
+        this.logger.warn(`Contents already exist for keyword ID: ${keywordId}`);
+        throw new Error(ERROR_MESSAGE.CONTENTS_ALREADY_EXISTS);
+      }
 
-    const articles = await this.generateArticles(keywordId, prompts);
+      await this.generateQuizzes(keywordId);
+      this.logger.log(
+        `Successfully completed content generation for keyword ID: ${keywordId}`,
+      );
+      return;
+    }
+
+    const prompts = await this.createPrompts(keywordInfo);
+    await this.generateArticles(keywordId, prompts);
+    await this.generateQuizzes(keywordId);
+
+    this.logger.log(
+      `Successfully completed content generation for keyword ID: ${keywordId}`,
+    );
   }
 
-  private async findKeyword(keywordId: bigint) {
+  private async findKeyword(keywordId: bigint): Promise<KeywordInfo> {
     const keyword = await this.prismaService.keyword.findUnique({
       select: {
         name: true,
         description: true,
-        Article: {
-          select: {
-            id: true,
-          },
-        },
       },
       where: {
         id: keywordId,
       },
     });
 
-    if (!keyword)
-      throw new BadRequestException(ERROR_MESSAGE.KEYWORD_NOT_FOUND);
+    if (!keyword) throw new Error(ERROR_MESSAGE.KEYWORD_NOT_FOUND);
 
-    return { name: keyword.name, description: keyword.description };
+    return keyword;
   }
 
   private async generateRelatedData(keywordInfo: KeywordInfo) {
@@ -80,7 +96,7 @@ export class BatchService {
     return JSON.stringify(mostRelatedDocs);
   }
 
-  private async createPrompts(keywordInfo: KeywordInfo) {
+  private async createPrompts(keywordInfo: KeywordInfo): Promise<string[]> {
     const relatedData = await this.generateRelatedData(keywordInfo);
 
     return [
@@ -97,8 +113,11 @@ export class BatchService {
     ];
   }
 
-  private async generateArticles(keywordId: bigint, prompts: string[]) {
-    const articles = await Promise.all(
+  private async generateArticles(
+    keywordId: bigint,
+    prompts: string[],
+  ): Promise<Article[]> {
+    const titleAndContents = await Promise.all(
       prompts.map((prompt) => {
         return this.aiService.generateObjFromAi(
           'gemini',
@@ -109,42 +128,57 @@ export class BatchService {
     );
 
     const summaries = await Promise.all(
-      articles.map((article) => {
+      titleAndContents.map((titleAndContent) => {
         return this.aiService.generateTextFromAi(
           'gemini',
-          createSummaryPrompts(article.content),
+          createSummaryPrompts(titleAndContent.content),
         );
       }),
     );
 
-    return articles.map((article, idx) => ({
-      ...article,
+    const createArticleDtos = titleAndContents.map((titleAndContent, idx) => ({
+      ...titleAndContent,
       summary: summaries[idx],
       publishedAt: new Date(),
+      keywordId,
     }));
+
+    const articles: Article[] = [];
+
+    await this.prismaService.$transaction(async (prisma) => {
+      for (const article of createArticleDtos) {
+        const newArticle = await prisma.article.create({
+          data: article,
+        });
+
+        articles.push(newArticle);
+      }
+    });
+
+    return articles;
   }
 
-  private async generateQuizzes(keywordId: bigint) {
+  private async generateQuizzes(keywordId: bigint): Promise<void> {
     const articles = await this.prismaService.article.findMany({
       where: {
         keywordId,
       },
     });
 
-    await this.prismaService.$transaction(async (prisma) => {
-      const quizzes = await Promise.all(
-        articles.map(async (article) => {
-          return {
-            ...(await this.aiService.generateObjFromAi(
-              'gemini',
-              createQuizzesPrompts(article.content),
-              quizArraySchema,
-            )),
-            articleId: article.id,
-          };
-        }),
-      );
+    const quizzes = await Promise.all(
+      articles.map(async (article) => {
+        return {
+          ...(await this.aiService.generateObjFromAi(
+            'gemini',
+            createQuizzesPrompts(article.content),
+            quizArraySchema,
+          )),
+          articleId: article.id,
+        };
+      }),
+    );
 
+    await this.prismaService.$transaction(async (prisma) => {
       await Promise.all(
         quizzes.map(async ({ articleId, quizzes }) => {
           for (const { answer, ...rest } of quizzes) {
@@ -157,28 +191,38 @@ export class BatchService {
     });
   }
 
-  private generateQuery(keywordInfo: KeywordInfo) {
-    console.log(`${keywordInfo.name} ${keywordInfo.description}`);
-    return `${keywordInfo.name} ${keywordInfo.description}`;
+  private generateQuery(keywordInfo: KeywordInfo): string {
+    console.log(
+      `query >>>>>>: ${keywordInfo.name} ${keywordInfo.description.substring(0, 100)}`,
+    );
+    return `${keywordInfo.name} ${keywordInfo.description.substring(0, 100)}`;
   }
 
-  private async isDataExists(keywordId: bigint) {
-    const articles = await this.prismaService.article.findMany({
+  private async isArticleExists(keywordId: bigint): Promise<boolean> {
+    const article = await this.prismaService.article.findFirst({
       select: {
         id: true,
-        Quiz: {
-          select: {
-            id: true,
-          },
-        },
       },
       where: {
         keywordId,
       },
     });
 
-    if (articles.length > 0) {
-      return true; //TODO: Quiz 관련 고민 필요.
-    }
+    return !!article;
+  }
+
+  private async isQuizExists(keywordId: bigint): Promise<boolean> {
+    const quiz = await this.prismaService.quiz.findFirst({
+      select: {
+        id: true,
+      },
+      where: {
+        Article: {
+          keywordId,
+        },
+      },
+    });
+
+    return !!quiz;
   }
 }
