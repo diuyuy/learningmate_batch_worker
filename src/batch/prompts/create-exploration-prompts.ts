@@ -20,12 +20,13 @@ Using the data above, please write an educational text explaining the In-Depth E
 <requirements>
 - Length: Greater than 1000 characters and less than 2000 characters.
 - Target audience: Learners encountering economic terms for the first time.
-- Tone: Friendly and easy to understand.
+- Tone: Formal style.
+- Prohibition : Since the concept of the keyword has already been written in another article, do not explain the concept of the keyword here.
 - Structure: Write in the order of:
   - Identify and explain 1–2 common misconceptions or incorrect assumptions people often have about ${keyword}. (Example: "Is inflation always a bad thing?")
   - Provide an in-depth analysis by connecting ${keyword} to a recent economic issue.
   - Conclude by posing a thought-provoking question for the learner to ponder further.
-- Format: Plain text (no markdown needed).
+- Format: News article format(no markdown needed).
 </requirements>
 
 <output_format>
