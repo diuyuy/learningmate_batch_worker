@@ -1,4 +1,4 @@
-# Learningmate 아티클, 퀴즈 생성 작업 워커 프로세스
+# Learningmate
 
 ## 프로젝트 설명
 
