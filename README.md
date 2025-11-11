@@ -54,9 +54,9 @@ src/
 
 ### 1. BatchConsumer (`src/batch/batch.consumer.ts`)
 
-- BullMQ 큐에서 작업을 수신하고 처리
+- **BullMQ** 큐에서 작업을 수신하고 처리
 - 작업 완료/실패 이벤트 처리
-- BatchService로 작업 라우팅
+- `BatchService`로 작업 라우팅
 
 ### 2. BatchService (`src/batch/batch.service.ts`)
 
@@ -67,13 +67,13 @@ src/
 
 ### 3. BraveSearchService (`src/batch/brave-search.service.ts`)
 
-- Brave Search API를 통한 키워드 검색
+- **Brave Search API**를 통한 키워드 검색
 
 ### 4. CrawlingService (`src/batch/crawling.service.ts`)
 
 - 검색 결과 URL 크롤링
-- robots.txt 준수
-- cheerio를 사용한 텍스트 추출
+- `robots.txt` 준수
+- **cheerio**를 사용한 텍스트 추출
 - 노이즈 제거 (스크립트, 스타일, 네비게이션 등)
 
 ### 5. BM25Service (`src/batch/bm25.service.ts`)
