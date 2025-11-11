@@ -1,98 +1,111 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Learningmate 아티클, 퀴즈 생성 작업 워커 프로세스
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## 프로젝트 설명
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Learningmate 프로젝트의 아티클, 퀴즈 생성 작업을 하는 워커 프로세스 입니다.
 
-## Description
+## 프로젝트 구조
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ pnpm install
+```text
+src/
+├── ai/                      # AI 서비스 모듈
+│   ├── ai.service.ts        # AI 제공자 추상화 (Gemini, OpenAI, xAI)
+│   ├── ai.module.ts
+│   └── types/               # AI 관련 타입 정의
+│
+├── batch/                   # 배치 작업 핵심 모듈
+│   ├── batch.consumer.ts    # BullMQ 작업 소비자
+│   ├── batch.service.ts     # 콘텐츠 생성 오케스트레이터
+│   ├── batch.module.ts
+│   ├── brave-search.service.ts  # Brave 검색 API 연동
+│   ├── crawling.service.ts  # 웹 크롤링 및 텍스트 추출
+│   ├── bm25.service.ts      # BM25 문서 랭킹 알고리즘
+│   ├── prompts/             # AI 프롬프트 템플릿
+│   │   ├── create-concept-prompts.ts
+│   │   ├── create-example-prompts.ts
+│   │   ├── create-related-words-prompts.ts
+│   │   ├── create-importace-prompts.ts
+│   │   ├── create-exploration-prompts.ts
+│   │   ├── create-summary-prompts.ts
+│   │   └── create-quizzes-propmts.ts
+│   ├── schemas/             # Zod 스키마 정의
+│   └── types/               # 배치 관련 타입 정의
+│
+├── prisma/                  # Prisma 클라이언트 모듈
+│   ├── prisma.service.ts    # Prisma 서비스
+│   └── prisma.module.ts
+│
+├── config/                  # 설정 관련
+│   └── validate-env.ts      # 환경 변수 검증
+│
+├── constants/               # 상수 정의
+│   ├── batch-options.ts     # BullMQ 설정
+│   ├── error-message.ts     # 에러 메시지
+│   └── env-keys.ts          # 환경 변수 키
+│
+├── utils/                   # 유틸리티 함수
+│   └── fetch-with-timeout.ts
+│
+├── worker.module.ts         # 메인 워커 모듈
+└── main.ts                  # 애플리케이션 진입점
 ```
 
-## Compile and run the project
+## 주요 컴포넌트
 
-```bash
-# development
-$ pnpm run start
+### 1. BatchConsumer (`src/batch/batch.consumer.ts`)
 
-# watch mode
-$ pnpm run start:dev
+- BullMQ 큐에서 작업을 수신하고 처리
+- 작업 완료/실패 이벤트 처리
+- BatchService로 작업 라우팅
 
-# production mode
-$ pnpm run start:prod
-```
+### 2. BatchService (`src/batch/batch.service.ts`)
 
-## Run tests
+- 콘텐츠 생성 파이프라인 전체 조정
+- 중복 생성 방지 (기존 콘텐츠 확인)
+- 검색부터 DB 저장까지 전 과정 관리
+- 트랜잭션을 통한 원자적 DB 작업
 
-```bash
-# unit tests
-$ pnpm run test
+### 3. BraveSearchService (`src/batch/brave-search.service.ts`)
 
-# e2e tests
-$ pnpm run test:e2e
+- Brave Search API를 통한 키워드 검색
 
-# test coverage
-$ pnpm run test:cov
-```
+### 4. CrawlingService (`src/batch/crawling.service.ts`)
 
-## Deployment
+- 검색 결과 URL 크롤링
+- robots.txt 준수
+- cheerio를 사용한 텍스트 추출
+- 노이즈 제거 (스크립트, 스타일, 네비게이션 등)
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### 5. BM25Service (`src/batch/bm25.service.ts`)
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+- 크롤링된 문서의 키워드 관련성 순위 매김
+- AI 프롬프트에 사용할 가장 관련성 높은 콘텐츠 선택
 
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
+### 6. AiService (`src/ai/ai.service.ts`)
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+- AI 제공자 추상화 계층
+- 지원 모델:
+  - Google Gemini (gemini-2.5-flash)
+  - OpenAI (chatgpt-4o-latest)
+  - xAI (grok-4)
+- Zod 스키마를 통한 구조화된 출력 생성
 
-## Resources
+## AI 기반 아티클 및 퀴즈 생성 파이프라인
 
-Check out a few resources that may come in handy when working with NestJS:
+1. **데이터 수집**
+   - **Brave Search API**를 통해 키워드 관련 검색 결과 상위 20개 수집
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+2. **콘텐츠 추출**
+   - **Cheerio** 라이브러리로 HTML 파싱 및 본문 텍스트 추출
+   - 광고, 스크립트 등 불필요한 요소 제거
 
-## Support
+3. **관련 문서 선별**
+   - BM25 알고리즘으로 키워드와의 관련도 점수 계산
+   - 상위 7개 문서를 컨텍스트로 선정
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+4. **AI 콘텐츠 생성**
+   - 사용 모델: Gemini 2.5 Flash
+   - 선별된 문서를 프롬프트에 포함하여 아티클 및 퀴즈 생성 요청
 
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+5. **콘텐츠 저장**
+   - 데이터베이스에 생성된 콘텐츠 저장
