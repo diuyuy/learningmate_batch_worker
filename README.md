@@ -86,8 +86,6 @@ src/
 - AI 제공자 추상화 계층
 - 지원 모델:
   - Google Gemini (gemini-2.5-flash)
-  - OpenAI (chatgpt-4o-latest)
-  - xAI (grok-4)
 - Zod 스키마를 통한 구조화된 출력 생성
 
 ## AI 기반 아티클 및 퀴즈 생성 파이프라인
