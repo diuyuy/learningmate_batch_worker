@@ -6,6 +6,7 @@ export const BATCH_OPTIONS = {
   SELECTORS: 'article, section, p, blockquote, dt, dd, div',
   MIN_TEXT_LENGTH: 30,
   MAX_TEXT_LENGTH_FOR_BM25: 3000,
+  CHUNK_SIZE: 800,
   QUEUE_NAME: 'batch',
   JOB_NAME: 'generate',
 } as const;
