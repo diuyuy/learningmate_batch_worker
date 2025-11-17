@@ -77,6 +77,37 @@ export class BatchService {
     return keyword;
   }
 
+  private chunkTextBySentence(text: string): string[] {
+    // 문장 단위로 분리 (., !, ? 기준)
+    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+
+    const chunks: string[] = [];
+    const maxChunkSize = BATCH_OPTIONS.CHUNK_SIZE;
+    let currentChunk = '';
+
+    for (const sentence of sentences) {
+      const trimmedSentence = sentence.trim();
+
+      if ((currentChunk + ' ' + trimmedSentence).length > maxChunkSize) {
+        if (currentChunk) {
+          chunks.push(currentChunk.trim());
+          currentChunk = trimmedSentence;
+        } else {
+          // 한 문장이 maxChunkSize보다 큰 경우 그대로 추가
+          chunks.push(trimmedSentence);
+        }
+      } else {
+        currentChunk += (currentChunk ? ' ' : '') + trimmedSentence;
+      }
+    }
+
+    if (currentChunk) {
+      chunks.push(currentChunk.trim());
+    }
+
+    return chunks.filter((chunk) => chunk.length > 0);
+  }
+
   private async generateRelatedData(keywordInfo: KeywordInfo) {
     this.logger.log(`Generating related data for keyword: ${keywordInfo.name}`);
 
@@ -93,22 +124,38 @@ export class BatchService {
       }),
     );
 
+    const crawledCount = crawledArr.filter((data) => data !== null).length;
+    this.logger.log(`Successfully crawled ${crawledCount} documents`);
+
     const validDocs = crawledArr
       .filter((data) => data !== null)
-      .map(({ title, texts }) => ({ title, content: texts.join('\n') }))
-      .filter(
-        ({ content }) =>
-          content.length <= BATCH_OPTIONS.MAX_TEXT_LENGTH_FOR_BM25,
-      );
+      .flatMap(({ title, texts }) => {
+        const fullContent = texts.join('\n');
+
+        // 이미 짧은 문서는 그대로 사용
+        if (fullContent.length <= BATCH_OPTIONS.MAX_TEXT_LENGTH_FOR_BM25) {
+          return [{ title, content: fullContent }];
+        }
+
+        // 긴 문서는 문장 단위로 청크 분할
+        const chunks = this.chunkTextBySentence(fullContent);
+        this.logger.log(
+          `Chunked document "${title}" into ${chunks.length} parts`,
+        );
+        return chunks.map((chunk, idx) => ({
+          title: `${title} (Part ${idx + 1})`,
+          content: chunk,
+        }));
+      });
 
     this.logger.log(
-      `Filtered ${validDocs.length} valid documents for BM25 ranking`,
+      `Prepared ${validDocs.length} document chunks for BM25 ranking`,
     );
 
     const bm25Service = new BM25Service(validDocs);
 
     const mostRelatedDocs = bm25Service
-      .search(query)
+      .search(query, 10)
       .map(({ document }) => document);
 
     this.logger.log(
